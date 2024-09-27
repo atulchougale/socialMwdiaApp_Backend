@@ -1,18 +1,17 @@
+const mongoose = require("mongoose");
 const Post = require("../models/Post");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 const sendEmail = require("../utils/emailService");
 
-
-
 // Create a new post
 const createPost = async (req, res) => {
   try {
-    const { postContent } = req.body;
+    const { title, postContent } = req.body;
     const image = req.files["image"] ? req.files["image"][0].path : "";
     const video = req.files["video"] ? req.files["video"][0].path : "";
 
-    if (!postContent && !image && !video) {
+    if (!title && !postContent && !image && !video) {
       return res
         .status(400)
         .json({ message: "Post must have either text, an image, or a video." });
@@ -20,6 +19,7 @@ const createPost = async (req, res) => {
 
     const newPost = new Post({
       userId: req.user.id,
+      title: title || "",
       postContent: postContent || "",
       image: image || "",
       video: video || "",
@@ -32,10 +32,38 @@ const createPost = async (req, res) => {
   }
 };
 
+// Get a single post by ID
+const getPostById = async (req, res) => {
+  const postId = req.params.id;
+
+  
+
+  try {
+      const post = await Post.findByIdAndUpdate(request.params.id, { $inc: { viewCount: 1 } })
+          .populate('userId', 'username email' , { strictPopulate: false })
+          .populate('comments')
+          .exec();
+
+      if (!post) {
+          return res.status(404).json({ message: "Post not found." });
+      }
+
+      res.status(200).json(post);
+  } catch (error) {
+      console.error('Error fetching post:', error);
+      res.status(500).json({ message: error.message });
+  }
+};
+
 // Get all posts
 const getPosts = async (req, res) => {
   try {
-    const posts = await Post.find().populate("userId", "username");
+    const posts = await Post.find()
+      .populate('userId', 'username')
+      .populate('comments')
+      .sort({ createdAt: -1 })
+      .exec();
+
     res.status(200).json(posts);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -44,28 +72,26 @@ const getPosts = async (req, res) => {
 
 // Update a post
 const updatePost = async (req, res) => {
+  const postId = req.params.id;
+
+  if (!mongoose.Types.ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: "Invalid post ID format." });
+  }
+
   try {
-    const existingPost = await Post.findById(req.params.id);
+    const existingPost = await Post.findById(postId);
     if (!existingPost) {
-      return res.status(404).json({ message: "Post not found" });
+      return res.status(404).json({ message: "Post not found." });
     }
 
     const updatedData = {
+      title: req.body.title || existingPost.title,
       postContent: req.body.postContent || existingPost.postContent,
-      image: req.files["image"]
-        ? req.files["image"][0].path
-        : existingPost.image,
-      video: req.files["video"]
-        ? req.files["video"][0].path
-        : existingPost.video,
+      image: req.files["image"] ? req.files["image"][0].path : existingPost.image,
+      video: req.files["video"] ? req.files["video"][0].path : existingPost.video,
     };
 
-    const updatedPost = await Post.findByIdAndUpdate(
-      req.params.id,
-      updatedData,
-      { new: true }
-    );
-
+    const updatedPost = await Post.findByIdAndUpdate(postId, updatedData, { new: true });
     res.status(200).json(updatedPost);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -74,97 +100,79 @@ const updatePost = async (req, res) => {
 
 // Delete a post
 const deletePost = async (req, res) => {
+  const postId = req.params.id;
+
+  if (!mongoose.Types.ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: "Invalid post ID format." });
+  }
+
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findById(postId);
 
     if (!post) {
-      return res.status(404).json({ message: "Post not found" });
+      return res.status(404).json({ message: "Post not found." });
     }
 
     if (post.userId.toString() !== req.user.id) {
-      return res
-        .status(403)
-        .json({ message: "You are not authorized to delete this post" });
+      return res.status(403).json({ message: "You are not authorized to delete this post." });
     }
 
-    await Post.findByIdAndDelete(req.params.id);
-    res.status(200).json({ message: "Post deleted successfully" });
+    await Post.findByIdAndDelete(postId);
+    res.status(200).json({ message: "Post deleted successfully." });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
 // Like or Unlike a post
-// Like or Unlike a post
 const likePost = async (req, res) => {
-    const postId = req.params.id;
-    const userId = req.user.id;
-  
-    try {
-      // Populate the post with the user details
-      const post = await Post.findById(postId).populate('userId', 'username email');
-  
-      if (!post) {
-        return res.status(404).json({ message: "Post not found." });
-      }
-  
-      const postOwnerId = post.userId._id; // Access the owner's ID
-  
-      if (post.likedBy.includes(userId)) {
-        post.likedBy = post.likedBy.filter((id) => id.toString() !== userId);
-        post.likes -= 1;
-  
-        await post.save();
-  
-        const message = `${req.user.username} unliked your post.`;
-        await createNotification(postOwnerId, "unlike", message);
-  
-        return res.status(200).json({ message: "Post unliked", post });
-      }
-  
-      post.likedBy.push(userId);
-      post.likes += 1;
-  
-      await post.save();
-  
-      const message = `${req.user.username} liked your post.`;
-      await createNotification(postOwnerId, "like", message);
-  
-      // Send email notification to the post owner
-      const emailMessage = `Hello ${post.userId.username},\n\nYour post titled "${post.postContent}" has received a new like from ${req.user.username}!\n\nCheck it out on your profile.\n\nBest regards,\nYour Social Media Team`;
-      await sendEmail(post.userId.email, "New Like on Your Post", emailMessage);
-  
-      res.status(200).json({ message: "Post liked", post });
-    } catch (error) {
-      console.error('Error liking/unliking post:', error); // For debugging purposes
-      res.status(500).json({ message: error.message });
-    }
-  };
-  
+  const postId = req.params.id;
+  const userId = req.user.id;
 
-// Function to create a notification
-const createNotification = async (userId, type, message) => {
+  if (!mongoose.Types.ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: "Invalid post ID format." });
+  }
+
   try {
-    const notification = new Notification({
-      userId,
-      type,
-      message,
-    });
-    await notification.save();
+    const post = await Post.findById(postId).populate('userId', 'username email');
+
+    if (!post) {
+      return res.status(404).json({ message: "Post not found." });
+    }
+
+    const postOwnerId = post.userId._id;
+
+    if (post.likedBy.includes(userId)) {
+      post.likedBy = post.likedBy.filter((id) => id.toString() !== userId);
+      post.likes -= 1;
+
+      await post.save();
+      return res.status(200).json({ message: "Post unliked", post });
+    }
+
+    post.likedBy.push(userId);
+    post.likes += 1;
+
+    await post.save();
+    res.status(200).json({ message: "Post liked", post });
   } catch (error) {
-    console.error("Error creating notification:", error);
+    console.error('Error liking/unliking post:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 
 // Get likes of a post
 const getLikesOfPost = async (req, res) => {
+  const postId = req.params.id;
+
+  if (!mongoose.Types.ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: "Invalid post ID format." });
+  }
+
   try {
-    const post = await Post.findById(req.params.id).populate(
-      "likedBy",
-      "username"
-    );
+    const post = await Post.findById(postId).populate("likedBy", "username");
     if (!post) {
-      return res.status(404).json({ message: "Post not found" });
+      return res.status(404).json({ message: "Post not found." });
     }
     res.status(200).json(post.likedBy);
   } catch (error) {
@@ -172,24 +180,37 @@ const getLikesOfPost = async (req, res) => {
   }
 };
 
+// Search posts by title or content
 const searchPosts = async (req, res) => {
-  const { query } = req.query; 
-  
-  
-  try {
-      const posts = await Post.find({
-          $or: [
-              { title: { $regex: query, $options: 'i' } }, // Search by title
-              { postContent: { $regex: query, $options: 'i' } } // Search by content
-          ]
-      });
+  const { query } = req.query;
 
-      res.status(200).json(posts);
+  try {
+    const posts = await Post.find({
+      $or: [
+        { title: { $regex: query, $options: 'i' } },
+        { postContent: { $regex: query, $options: 'i' } }
+      ]
+    }).populate('userId', 'username email');
+    res.status(200).json(posts);
   } catch (error) {
-      res.status(500).json({ message: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
+
+const getUserPosts = async (req, res) => {
+  const userId = req.user.id; // Assuming you're using middleware to attach the authenticated user
+
+  try {
+    const userPosts = await Post.find({ userId }).populate('userId', 'username email').sort({ createdAt: -1 });
+    if (!userPosts) {
+      return res.status(404).json({ message: "No posts found for this user." });
+    }
+    res.status(200).json(userPosts);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 module.exports = {
   createPost,
@@ -199,4 +220,6 @@ module.exports = {
   likePost,
   getLikesOfPost,
   searchPosts,
+  getPostById,
+  getUserPosts
 };

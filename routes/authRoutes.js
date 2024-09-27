@@ -32,8 +32,11 @@ router.get('/:id', getUserProfile);
 // Follow a user route
 router.put('/follow/:id', protect, followUser); 
 
+
 // Unfollow a user route
 router.put('/unfollow/:id', protect, unfollowUser); 
+
+
 
 
 
