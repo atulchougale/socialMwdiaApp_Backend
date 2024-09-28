@@ -9,7 +9,8 @@ const {
     getLikesOfPost,
     searchPosts,
     getPostById,
-    getUserPosts
+    getUserPosts,
+    getOUserPosts
 } = require('../controllers/postsController');
 const protect = require('../middleware/authMiddleware');
 const upload = require('../middleware/upload');
@@ -24,5 +25,6 @@ router.post('/:id/like', protect, likePost); // Like a post
 router.get('/:id/likes', protect, getLikesOfPost); // Get likes of a post
 router.get('/search', protect, searchPosts); // Search posts by title or content
 router.get('/user/:id', protect, getUserPosts);
+router.get('/posts/user/:userId', getOUserPosts);
 
 module.exports = router;

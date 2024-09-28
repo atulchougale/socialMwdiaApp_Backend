@@ -36,24 +36,23 @@ const createPost = async (req, res) => {
 const getPostById = async (req, res) => {
   const postId = req.params.id;
 
-  
-
   try {
-      const post = await Post.findByIdAndUpdate(request.params.id, { $inc: { viewCount: 1 } })
-          .populate('userId', 'username email' , { strictPopulate: false })
-          .populate('comments')
-          .exec();
+    const post = await Post.findById(postId) 
+      .populate('userId', 'username email')
+      .populate('comments')
+      .exec();
 
-      if (!post) {
-          return res.status(404).json({ message: "Post not found." });
-      }
+    if (!post) {
+      return res.status(404).json({ message: "Post not found." });
+    }
 
-      res.status(200).json(post);
+    res.status(200).json(post);
   } catch (error) {
-      console.error('Error fetching post:', error);
-      res.status(500).json({ message: error.message });
+    console.error('Error fetching post:', error);
+    res.status(500).json({ message: error.message });
   }
 };
+
 
 // Get all posts
 const getPosts = async (req, res) => {
@@ -212,6 +211,20 @@ const getUserPosts = async (req, res) => {
   }
 };
 
+const getOUserPosts = async (req, res) => {
+  const userId = req.params.userId; // Fetch userId from request parameters
+
+  try {
+    const userPosts = await Post.find({ userId }).populate('userId', 'username email').sort({ createdAt: -1 });
+    if (!userPosts) {
+      return res.status(404).json({ message: "No posts found for this user." });
+    }
+    res.status(200).json(userPosts);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createPost,
   getPosts,
@@ -221,5 +234,6 @@ module.exports = {
   getLikesOfPost,
   searchPosts,
   getPostById,
-  getUserPosts
+  getUserPosts,
+  getOUserPosts
 };
