@@ -1,11 +1,13 @@
 const express = require('express');
 const { 
     registerUser, 
-    loginUser, 
+    loginUser,
+    logOutUser, 
     updateProfile, 
     getUserProfile, 
     followUser, 
-    unfollowUser, 
+    unfollowUser,
+    userLogOut, 
 } = require('../controllers/authController');
 const { searchUsers } = require('../controllers/authController'); 
 
@@ -19,6 +21,9 @@ router.post('/register', registerUser);
 
 // Login route
 router.post('/login', loginUser);
+
+//Logout route
+router.post('/logout', logOutUser);
 
 // Search users by username
 router.get('/search', protect, searchUsers);
@@ -35,6 +40,8 @@ router.put('/follow/:id', protect, followUser);
 
 // Unfollow a user route
 router.put('/unfollow/:id', protect, unfollowUser); 
+
+router.post('/logout',userLogOut)
 
 
 

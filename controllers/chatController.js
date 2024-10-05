@@ -1,58 +1,83 @@
-
-const Chat = require('../models/Chat');
-const Message = require('../models/Message');
-
-// Start a new chat or retrieve existing chat
-exports.startChat = async (req, res) => {
-  try {
-    const { participantId } = req.body; 
-    const userId = req.user.id; 
-
-    let chat = await Chat.findOne({
-      participants: { $all: [userId, participantId] },
-    });
-
-    if (!chat) {
-      chat = new Chat({ participants: [userId, participantId] });
-      await chat.save();
-    }
-
-    res.status(200).json(chat);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+const Conversation = require("../models/Chat");
+const Message = require("../models/Message");
+const { getReceiverSocketId, io } = require("../Socket/socket");
 
 // Send a new message
 exports.sendMessage = async (req, res) => {
   try {
-    const { chatId, text } = req.body;
-    const sender = req.user.id;
+    const {message} = req.body;
+    const {id:reciverId} = req.params;
+    // console.log("reciverId",reciverId);
+    
+    const senderId = req.user._id;
+    // console.log("senderId",senderId);
+    
 
-    const newMessage = new Message({
-      chatId,
-      sender,
-      text,
-    });
 
-    await newMessage.save();
-    res.status(201).json(newMessage);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+    let chats = await Conversation.findOne({
+        participants:{$all:[senderId , reciverId]}
+    })
+    // console.log("chats",chats);
+    
+
+    if(!chats){
+        chats = await Conversation.create({
+            participants:[senderId , reciverId],
+        })
+    }
+
+    const newMessages = new Message({
+        senderId,
+        reciverId,
+        message,
+        conversationId: chats._id
+    })
+
+    // console.log("newMessages",newMessages);
+    
+
+    if(newMessages){
+        chats.messages.push(newMessages._id);
+    }
+
+    await Promise.all([chats.save(),newMessages.save()]);
+
+    //  SOCKET.IO function 
+     const reciverSocketId = getReceiverSocketId(reciverId);
+     if(reciverSocketId){
+        io.to(reciverSocketId).emit("newMessage",newMessages)
+     }
+
+
+    res.status(201).send(newMessages)
+
+} catch (error) {
+    res.status(500).send({
+        success: false,
+        message: error
+    })
+    console.log(`error in sendMessage ${error}`);
+}
 };
 
 // Get chat messages
-exports.getChatMessages = async (req, res) => {
+exports.getMessages = async (req, res) => {
   try {
-    const { chatId } = req.params;
+    const { id: reciverId } = req.params;
+    const senderId = req.user._id;
 
-    const messages = await Message.find({ chatId })
-      .populate('sender', 'username')
-      .sort({ createdAt: 1 });
+    const chats = await Conversation.findOne({
+      participants: { $all: [senderId, reciverId] },
+    }).populate("messages");
 
-    res.status(200).json(messages);
+    if (!chats) return res.status(200).send([]);
+    const message = chats.messages;
+    res.status(200).send(message);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).send({
+      success: false,
+      message: error,
+    });
+    console.log(`error in getMessage ${error}`);
   }
 };
