@@ -81,3 +81,37 @@ exports.getMessages = async (req, res) => {
     console.log(`error in getMessage ${error}`);
   }
 };
+
+
+
+
+// Delete a single message
+exports.deleteMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params; 
+    const senderId = req.user._id; 
+
+   
+    const message = await Message.findOne({ _id: messageId, senderId });
+
+    if (!message) {
+      return res.status(404).send({ success: false, message: "Message not found or unauthorized." });
+    }
+
+  
+    await Message.findByIdAndDelete(messageId);
+
+    await Conversation.updateOne(
+      { messages: messageId },
+      { $pull: { messages: messageId } }
+    );
+
+    res.status(200).send({ success: true, message: "Message deleted successfully." });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: error.message,
+    });
+    console.log(`Error in deleteMessage: ${error.message}`);
+  }
+};
