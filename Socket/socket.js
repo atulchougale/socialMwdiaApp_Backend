@@ -10,7 +10,7 @@ const app = express();
 const server = http.createServer(app)
 const io = new Server(server,{
     cors:{
-        origin:[ 'https://mysocialapp-07.netlify.app/'],
+        origin:['http://localhost:3000'],
         methods:["GET","POST"]
     }
 });
@@ -18,7 +18,7 @@ const io = new Server(server,{
  const getReceiverSocketId = (reciverId)=>{
     return userSocketmap[reciverId];
   }
-  const userSocketmap = {}; //{userId,socketid}
+  const userSocketmap = {}; 
   io.on('connection', (socket) => {
     const userId = socket.handshake.query.userId
    
