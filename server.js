@@ -36,8 +36,10 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 
 
+const allowedOrigins = ['https://mysocialapp-07.netlify.app'];
+
 app.use(cors({
-    origin:'http://localhost:3000', 
+    origin:'https://mysocialapp-07.netlify.app/', 
     credentials: true
 }));
 
