@@ -36,12 +36,23 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 
 
-const allowedOrigins = ['https://mysocialapp-07.netlify.app'];
+const allowedOrigins = ['http://localhost:3000', 'https://mysocialapp-07.netlify.app'];
 
 app.use(cors({
-    origin:'https://mysocialapp-07.netlify.app/', 
-    credentials: true
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true, // Allow cookies and other credentials
 }));
+
+// Handle preflight requests (Optional)
+app.options('*', cors());
+
 
 
 
