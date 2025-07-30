@@ -194,6 +194,7 @@ exports.followUser = async (req, res) => {
     await userToFollow.save();
 
     const message = `${req.user.username} started following you.`;
+
     await Notification.create({
       userId: userToFollow._id,
       type: "follow",
@@ -202,17 +203,24 @@ exports.followUser = async (req, res) => {
 
     const emailMessage = `Hello ${userToFollow.username},\n\n${req.user.username} has started following you on our platform! 
         You can now see their posts in your feed.\n\nBest regards,\nYour Social Media Team`;
-    await sendEmail(
-      userToFollow.email,
-      "New Follower Notification",
-      emailMessage
-    );
+
+    // Wrap email sending in try-catch
+    try {
+      await sendEmail(
+        userToFollow.email,
+        "New Follower Notification",
+        emailMessage
+      );
+    } catch (emailErr) {
+      console.error("Error sending follow email:", emailErr.message);
+    }
 
     res.status(200).json(userToFollow);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 exports.unfollowUser = async (req, res) => {
   try {
@@ -232,12 +240,10 @@ exports.unfollowUser = async (req, res) => {
         .json({ message: "You are not following this user" });
     }
 
-    // Remove from following array
     req.user.following = req.user.following.filter(
       (id) => id.toString() !== userToUnfollow._id.toString()
     );
 
-    // Update the user in the database
     await User.findByIdAndUpdate(
       req.user._id,
       { following: req.user.following },
@@ -250,8 +256,17 @@ exports.unfollowUser = async (req, res) => {
 
     await userToUnfollow.save();
 
-    const message = `${req.user.username} has unfollowed you.`;
-    await sendEmail(userToUnfollow.email, "Unfollow Notification", message);
+    // Email notification wrapped in try-catch
+    try {
+      const message = `${req.user.username} has unfollowed you.`;
+      await sendEmail(
+        userToUnfollow.email,
+        "Unfollow Notification",
+        message
+      );
+    } catch (emailErr) {
+      console.error("Error sending unfollow email:", emailErr.message);
+    }
 
     res
       .status(200)
@@ -260,6 +275,7 @@ exports.unfollowUser = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 // Function to create a notification
 const createNotification = async (userId, type, message) => {

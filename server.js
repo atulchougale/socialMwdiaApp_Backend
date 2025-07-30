@@ -23,7 +23,7 @@ app.use(cookieParser());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Define allowed origins for CORS
-const allowedOrigins = ['http://localhost:3000', 'https://mysocialapp-07.netlify.app'];
+const allowedOrigins = ['http://localhost:3000', 'https://mysocialapp-07.netlify.app', 'http://10.223.117.212:3000'];
 
 // Configure CORS
 app.use(

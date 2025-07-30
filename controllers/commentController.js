@@ -7,53 +7,60 @@ const sendEmail = require("../utils/emailService");
 // Create a new comment
 const createComment = async (req, res) => {
   try {
-    // Validate request body for commentText
+    // 1. Validate input
     if (!req.body.commentText) {
       return res.status(400).json({ message: "Comment text is required." });
     }
 
-    // Create a new comment
+    // 2. Save the comment
     const newComment = new Comment({
       postId: req.params.postId,
-      userId: req.user.id, 
+      userId: req.user.id,
       commentText: req.body.commentText,
       ownerName: req.user.username,
     });
 
-    // Save the comment
     const savedComment = await newComment.save();
 
-    // Update the post to include the new comment's ID
+    // 3. Update post with new comment ID
     await Post.findByIdAndUpdate(req.params.postId, {
       $push: { comments: savedComment._id },
     });
 
-    // Populate post owner details for notification
-    const post = await Post.findById(req.params.postId).populate('userId', 'username email');
+    // 4. Get post owner details
+    const post = await Post.findById(req.params.postId).populate(
+      "userId",
+      "username email"
+    );
 
-    // Create a notification message for the post owner
     const postOwnerId = post.userId;
     const message = `${req.user.username} commented on your post.`;
 
-    // Call your function to create a notification
+    // 5. Create notification
     await createNotification(postOwnerId, "comment", message);
 
-    // Prepare email notification
-    const emailMessage = `Hello ${post.userId.username},\n\nYou have received a new comment on your post titled "${post.title}":\n\n"${savedComment.commentText}"\n\nCheck it out on your profile!\n\nBest regards,\nYour Social Media Team`;
-    await sendEmail(
-      post.userId.email,
-      "New Comment on Your Post",
-      emailMessage
-    );
+    // 6. Email notification (wrapped in try-catch)
+    try {
+      const emailMessage = `Hello ${post.userId.username},\n\nYou have received a new comment on your post titled "${post.title}":\n\n"${savedComment.commentText}"\n\nCheck it out on your profile!\n\nBest regards,\nYour Social Media Team`;
 
-    // Respond with the saved comment
+      await sendEmail(
+        post.userId.email,
+        "New Comment on Your Post",
+        emailMessage
+      );
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError.message);
+      // Optional: you can log this to a file or monitoring service
+    }
+
+    // 7. Respond to client with success
     res.status(201).json(savedComment);
   } catch (error) {
-    // Log the error for debugging
     console.error("Error creating comment:", error);
     res.status(500).json({ message: error.message });
   }
 };
+
 
 
 // Function to create a notification
